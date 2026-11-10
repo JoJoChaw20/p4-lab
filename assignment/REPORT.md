@@ -2,7 +2,7 @@
 
 Student ID (last 4 digits only): **5019**
 
-Draft in progress: C1 measured; design decisions and later experiments are pending.
+Draft in progress: C1 measured, C2 selected and C3 locally verified; C4–C5 are pending.
 The student will review the explanations before submission.
 
 ## 1. Analysis: the loop
@@ -48,16 +48,48 @@ additional IPv4-loop experiment.
 
 ## 2. Design: the hop limit
 
-<!-- Your header change and your pipeline change, and the reason for each choice:
-     - the field's size, and where in the header you put it (and why there);
-     - the starting value send.py uses, and how you chose it;
-     - where it's decremented, and what happens when it runs out;
-     - what else had to change for every part of the path to agree (parser, deparser, hosts). -->
+After discussing the alternatives with Codex, I accepted an 8-bit `hops` field
+after `dst_id`, with a sender default of 4. One byte provides values from 0 to
+255. Appending it keeps `proto_id` and `dst_id` at their existing offsets, but
+does not guarantee compatibility: an old parser still expects IPv4 immediately
+after the original four-byte tunnel header. The mixed rollout will test this.
+
+The budget means the number of additional switches allowed to forward the
+packet. In ingress, a tunnel packet arriving with 0 is dropped before the
+tunnel table can forward it. Otherwise, the tunnel forwarding action subtracts
+one and sets the output port. An arriving value of 1 therefore permits one
+final forwarding operation with 0 on the wire. Checking first prevents unsigned
+wraparound. I recognised that a zero budget means the packet must be dropped
+because its budget is exhausted.
+
+The default of 4 covers the normal two-switch route and keeps loop experiments
+short. The prediction is that a normal receiver will see 2 remaining. In the
+loop, there should be four forwards (s1, s2, s1, s2), followed by a drop on the
+fifth switch arrival at s1. These are predictions, pending C4 measurements.
+
+All three components use the same order: 16-bit `proto_id`, 16-bit `dst_id`,
+then 8-bit `hops`. P4's existing whole-header extract and emit statements now
+consume and write five tunnel bytes. Both host scripts use the matching Scapy
+layout; the sender sets the budget and the receiver prints it.
 
 ## 3. Implementation
 
-<!-- Summarise what you changed in tunnel.p4, send.py and receive.py. The pull request shows
-     the code itself: here, explain anything a reviewer might not see from the diff alone. -->
+`tunnel.p4` adds the field and an ingress zero check. The decrement is in
+`myTunnel_forward`, so a table miss still drops without consuming a forwarding
+budget. The zero branch skips the table entirely, preventing a later forwarding
+action from overwriting the drop decision. The plain IPv4 branch is unchanged.
+
+`send.py` provides `--hops`, defaulting to 4, and rejects values outside 0–255
+before sending. `receive.py` prints the remaining value and puts its sniffing
+startup in `main()` so its header definition can be checked without starting
+a capture. `tunnel_v1.p4` remains the original program for C5.
+
+[compile.txt](evidence/compile.txt) records successful local P4 compilation and
+Python syntax checks. Offline checks confirmed the five-byte layout and receiver
+decoding at budgets 0, 1, 2, 4 and 255, and rejection of -1 and 256 by the sender.
+The first Scapy import was blocked by sandbox socket permissions; the same check
+passed outside that sandbox. These checks do not establish switch delivery or
+the GitHub check status; those require the later experiments and submission.
 
 ## 4. Evidence: it works
 
@@ -83,10 +115,14 @@ additional IPv4-loop experiment.
 
 Codex read the assignment and repository, explained the C1 experiment, ran it,
 recorded commands and actual outputs, preserved the logs, identified log rotation,
-and drafted the C1 analysis. It also automated the evidence commit. I completed
+and drafted the C1 analysis. It proposed the C2 design, explained zero-budget
+handling and unsigned wraparound, and implemented the design I accepted in
+the P4 program and both host scripts. It also automated milestone commits. I completed
 the guided lab, restored and verified baseline tunnel delivery, and preserved
-the original program on `hop-limit` before this session. Design choices and
-my review of this draft are still pending.
+the original program on `hop-limit` before this session. During the discussion,
+I identified that an exhausted budget should cause a drop and accepted the
+recommended field layout, default and forwarding rule. My review of this draft
+and the remaining experiments are still pending.
 
 <!-- Before submission, confirm any separate ChatGPT assistance, update this
      declaration for later work, and describe the decisions and interpretation
@@ -97,6 +133,8 @@ my review of this draft are still pending.
 | File | What it shows |
 |---|---|
 | `evidence/loop-before.txt` | The loop with your finished lab program: pass counts growing |
+| `evidence/loop-before-logs.tar.gz` | Original switch and receiver logs, including rotated files |
+| `evidence/compile.txt` | Local compilation, Python syntax and offline header checks |
 | `evidence/delivery.txt` | Tunnelled delivery with the hop limit, and a plain ping |
 | `evidence/loop-after.txt` | The same loop with your hop limit: pass counts that stop |
 | `evidence/mixed.txt` | The mixed rollout: s1 new, s2 old |
