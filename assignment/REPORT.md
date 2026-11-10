@@ -2,10 +2,6 @@
 
 Student ID (last 4 digits only): **5019**
 
-Draft in progress: C1–C5 experiments complete; rollout choice, AI-use confirmation
-and final review are pending.
-The student will review the explanations before submission.
-
 ## 1. Analysis: the loop
 
 Both switches ran the finished lab program, identical to `tunnel_v1.p4`.
@@ -90,8 +86,9 @@ a capture. `tunnel_v1.p4` remains the original program for C5.
 Python syntax checks. Offline checks confirmed the five-byte layout and receiver
 decoding at budgets 0, 1, 2, 4 and 255, and rejection of -1 and 256 by the sender.
 The first Scapy import was blocked by sandbox socket permissions; the same check
-passed outside that sandbox. These checks do not establish switch delivery or
-the GitHub check status; those require the later experiments and submission.
+passed outside that sandbox. These local checks establish compilation and host
+header consistency. Sections 4–5 provide the network evidence; GitHub's compile
+check is a separate submission check.
 
 ## 4. Evidence: it works
 
@@ -131,8 +128,8 @@ loop packet. The network was then stopped cleanly, and the full logs are in
 Before running C5, I predicted that h2 would not receive a correctly decoded
 packet. I also predicted that the loop might still stop if the packet returned
 to s1, because s1 understands the new budget. The planned configuration for
-both mixed tests is s1 running the new `tunnel.p4` and s2 running the preserved
-`tunnel_v1.p4`; both host scripts use the new five-byte tunnel header.
+both mixed tests was s1 running the new `tunnel.p4` and s2 running the preserved
+`tunnel_v1.p4`, with both host scripts using the new five-byte tunnel header.
 These predictions were recorded before sending any mixed-version test packets.
 
 **Mixed-version results.** [mixed.txt](evidence/mixed.txt) records three separate,
@@ -185,9 +182,10 @@ counts. This protects this particular cycle; it does not establish protection
 for a cycle consisting entirely of old switches, or reliable mixed-version
 payload handling.
 
-**Safe rollout options (choice pending).** A new EtherType can distinguish the
-new header from the old format. First deploy programs and receivers that support
-both formats while senders keep using the old one. Verify all switches on the
+**Safe rollout choice.** I chose a new EtherType to distinguish the new header
+from the old format and avoid silent misparsing. First deploy programs and
+receivers that support both formats while senders keep using the old one.
+Verify all switches on the
 intended paths, including alternate paths, before enabling new-format senders.
 Keep old-format support until old traffic has drained. An unchanged old switch
 in this lab would drop an unfamiliar EtherType, so the identifier prevents
@@ -228,25 +226,26 @@ does not prove that a hardware target fits the change or preserves line rate.
 
 ## AI use
 
-Codex read the assignment and repository, explained the C1 experiment, ran it,
-recorded commands and actual outputs, preserved the logs, identified log rotation,
-and drafted the C1 analysis. It proposed the C2 design, explained zero-budget
-handling and unsigned wraparound, and implemented the design I accepted in
-the P4 program and both host scripts. It ran local compilation, offline header
-checks, C4 delivery and boundary tests, and the bounded loop test. It recorded
-my C5 predictions before testing, ran the mixed-version tests, investigated the
-unexpected successful delivery with a diagnostic packet and byte analysis,
-and drafted the results and evaluation. It also automated milestone commits. I completed
-the guided lab, restored and verified baseline tunnel delivery, and preserved
-the original program on `hop-limit` before this session. During the discussion,
-I identified that an exhausted budget should cause a drop and accepted the
-recommended field layout, default and forwarding rule. I predicted no correctly
-decoded mixed delivery and possible loop termination on return to s1. My rollout
-choice and review of this draft are still pending.
+I used OpenAI ChatGPT for step-by-step guidance through the P4 lab. It helped
+me edit `tunnel.p4`, interpret ping results and receiver logs, and understand why
+IPv4 forwarding delivered the test packet to h3 while tunnel-exit forwarding
+delivered it to h2. I ran the lab commands and verified the results in my GitHub
+Codespace, restored baseline tunnel delivery, and preserved `tunnel_v1.p4` before
+starting the assignment work with Codex.
 
-<!-- Before submission, confirm any separate ChatGPT assistance, update this
-     declaration for later work, and describe the decisions and interpretation
-     the student contributed. Do not claim review or decisions before they occur. -->
+Codex read the assignment and repository, explained the experiments and
+hop-budget rules, proposed the design, and edited the three programs after I
+accepted it. It ran the assignment experiments and local checks, saved commands,
+outputs and raw logs, identified log rotation, and investigated the unexpected
+mixed delivery using a diagnostic packet and byte-analysis script. It drafted
+the report from the measurements, automated milestone commits and prepared the
+PR description.
+
+I identified that an exhausted budget should cause a drop, accepted the proposed
+field layout, default and forwarding rule, and supplied the mixed-version
+predictions before testing. I chose the new-EtherType rollout proposal after
+comparing it with a version field. The report distinguishes my predictions from
+the measured results, including the successful mixed delivery I did not expect.
 
 ## Evidence files
 
