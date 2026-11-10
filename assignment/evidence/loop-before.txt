@@ -1,0 +1,187 @@
+C1 original-tunnel baseline
+UTC start: 20261110T091156Z
+Student suffix: 5019; addresses: 10.19.0.x
+Prediction: one exit-3 packet circulates between s1 and s2; pass counts grow over five seconds.
+s1 program: tunnel.p4; s2 program: tunnel.p4; both identical to preserved tunnel_v1.p4.
+SHA256 tunnel.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 494617155dac00ea887305109c3538bd6af928e0ceef40d40dde4fbf1604cbab
+SHA256 receive.py: 02ada262adf6048a746ff3056602fbf2523babe78143b213f0097550968e034c
+Prior logs moved unchanged to logs/pre-c1-20261110T091156Z
+$ python3 -u topo.py --id 5019
+*** Compiling tunnel.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh ./p4cli s1 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 02
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 03
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 "table_modify MyIngress.myTunnel_exact MyIngress.myTunnel_forward 2 1"
+Done
+Modifying entry 2 for exact match table MyIngress.myTunnel_exact
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 01
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+logs/s1.txt:0
+logs/s2.txt:0
+mininet> h1 python3 send.py 10.19.0.3 "loop" --tunnel 3
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 32
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x66a3
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 12
+           chksum    = 0xee0a
+###[ Raw ]### 
+              load      = 'loop'
+
+Sent from h1-eth0.
+mininet> sh date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:12:01.109064846Z
+logs/s1.txt:63
+logs/s2.txt:62
+mininet> sh sleep 5; date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:12:06.125945658Z
+logs/s1.txt:103
+logs/s2.txt:102
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x7d1fcbc79130> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x73c3a8ad91f0> failed with '[Errno 100] Network is down'. It was closed.
+Raw C1 logs preserved in assignment/evidence/loop-before-logs.tar.gz
+
+Post-run verification: BMv2 rotated its logs during the observation window.
+The original grep commands above count only the current .txt files, not cumulative passes.
+The following totals include the rotated files. Timestamp reconstructions use the
+millisecond timestamps in the logs and the truncated timestamps printed before grep;
+they are not replacements for the live grep outputs. Final totals also include passes
+between the second observation and network shutdown.
+$ python3 - <<'PY_COUNTS'
+from pathlib import Path
+import re
+for switch in ('s1', 's2'):
+    events = []
+    for path in sorted(Path('logs').glob(switch + '*.txt')):
+        lines = [line for line in path.read_text().splitlines() if 'Processing packet received' in line]
+        print(f'{path}: {len(lines)}')
+        events.extend(re.match(r'\[([^]]+)\]', line).group(1) for line in lines)
+    print(f'{switch}: total preserved processing events = {len(events)}')
+    for cutoff in ('09:12:01.109', '09:12:06.125'):
+        print(f'{switch}: events timestamped <= {cutoff} UTC = {sum(t <= cutoff for t in events)}')
+PY_COUNTS
+logs/s1.1.txt: 1598
+logs/s1.txt: 108
+s1: total preserved processing events = 1706
+s1: events timestamped <= 09:12:01.109 UTC = 62
+s1: events timestamped <= 09:12:06.125 UTC = 1700
+logs/s2.1.txt: 1598
+logs/s2.txt: 107
+s2: total preserved processing events = 1705
+s2: events timestamped <= 09:12:01.109 UTC = 62
+s2: events timestamped <= 09:12:06.125 UTC = 1699

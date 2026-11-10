@@ -1,0 +1,92 @@
+C3 local compilation and offline header checks. GitHub CI has not yet been checked for this change.
+$ p4c-bm2-ss -o build/tunnel.json tunnel.p4
+Exit code: 0
+$ /root/p4-python-venv/bin/python3 -m py_compile send.py receive.py
+Exit code: 0
+$ /root/p4-python-venv/bin/python3 -c 'import contextlib
+import io
+import subprocess
+import sys
+import send
+import receive
+from scapy.all import IP, UDP, Raw
+for hops in (0, 1, 2, 4, 255):
+    packet = send.MyTunnel(dst_id=3, hops=hops) / IP(src="10.19.0.1", dst="10.19.0.3") / UDP(sport=4321, dport=4321) / Raw(b"header-check")
+    wire = bytes(packet)
+    assert wire[:5] == bytes([0x08, 0x00, 0x00, 0x03, hops]), wire.hex()
+    decoded = receive.MyTunnel(wire)
+    assert decoded.hops == hops and decoded.dst_id == 3
+    assert decoded[IP].dst == "10.19.0.3" and decoded[Raw].load == b"header-check"
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        receive.show(decoded)
+    assert f"hops={hops}" in output.getvalue(), output.getvalue()
+    print(f"PASS budget {hops}: five-byte wire prefix {wire[:5].hex()}, receiver decodes IP and payload and prints budget")
+assert send.MyTunnel().hops == 4
+for invalid in ("-1", "256"):
+    result = subprocess.run([sys.executable, "send.py", "10.19.0.3", "invalid", "--tunnel", "3", "--hops", invalid], capture_output=True, text=True)
+    assert result.returncode == 2 and "--hops must be between 0 and 255" in result.stderr
+    print(f"PASS --hops {invalid}: rejected before sending (exit 2)")
+print("PASS default header budget is 4; these are offline checks, not switch-delivery evidence")'
+WARNING: Interface lo does not exist!
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/workspaces/p4-lab/send.py", line 10, in <module>
+    from scapy.all import IP, UDP, Ether, Packet, ShortField, ByteField, bind_layers, get_if_hwaddr, get_if_list, sendp
+  File "/root/p4-python-venv/lib/python3.12/site-packages/scapy/all.py", line 26, in <module>
+    from scapy.route import *
+  File "/root/p4-python-venv/lib/python3.12/site-packages/scapy/route.py", line 218, in <module>
+    conf.route = Route()
+                 ^^^^^^^
+  File "/root/p4-python-venv/lib/python3.12/site-packages/scapy/route.py", line 37, in __init__
+    self.resync()
+  File "/root/p4-python-venv/lib/python3.12/site-packages/scapy/route.py", line 47, in resync
+    self.routes = read_routes()
+                  ^^^^^^^^^^^^^
+  File "/root/p4-python-venv/lib/python3.12/site-packages/scapy/arch/linux.py", line 251, in read_routes
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/socket.py", line 233, in __init__
+    _socket.socket.__init__(self, family, type, proto, fileno)
+PermissionError: [Errno 1] Operation not permitted
+Exit code: 1
+
+The offline Scapy check above was blocked by sandbox socket permissions during import. Rerunning outside the sandbox; no packets are sent.
+$ /root/p4-python-venv/bin/python3 -c 'import contextlib
+import io
+import subprocess
+import sys
+import send
+import receive
+from scapy.all import IP, UDP, Raw
+for hops in (0, 1, 2, 4, 255):
+    packet = send.MyTunnel(dst_id=3, hops=hops) / IP(src="10.19.0.1", dst="10.19.0.3") / UDP(sport=4321, dport=4321) / Raw(b"header-check")
+    wire = bytes(packet)
+    assert wire[:5] == bytes([0x08, 0x00, 0x00, 0x03, hops]), wire.hex()
+    decoded = receive.MyTunnel(wire)
+    assert decoded.hops == hops and decoded.dst_id == 3
+    assert decoded[IP].dst == "10.19.0.3" and decoded[Raw].load == b"header-check"
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        receive.show(decoded)
+    assert f"hops={hops}" in output.getvalue(), output.getvalue()
+    print(f"PASS budget {hops}: five-byte wire prefix {wire[:5].hex()}, receiver decodes IP and payload and prints budget")
+assert send.MyTunnel().hops == 4
+for invalid in ("-1", "256"):
+    result = subprocess.run([sys.executable, "send.py", "10.19.0.3", "invalid", "--tunnel", "3", "--hops", invalid], capture_output=True, text=True)
+    assert result.returncode == 2 and "--hops must be between 0 and 255" in result.stderr
+    print(f"PASS --hops {invalid}: rejected before sending (exit 2)")
+print("PASS default header budget is 4; these are offline checks, not switch-delivery evidence")'
+PASS budget 0: five-byte wire prefix 0800000300, receiver decodes IP and payload and prints budget
+PASS budget 1: five-byte wire prefix 0800000301, receiver decodes IP and payload and prints budget
+PASS budget 2: five-byte wire prefix 0800000302, receiver decodes IP and payload and prints budget
+PASS budget 4: five-byte wire prefix 0800000304, receiver decodes IP and payload and prints budget
+PASS budget 255: five-byte wire prefix 08000003ff, receiver decodes IP and payload and prints budget
+PASS --hops -1: rejected before sending (exit 2)
+PASS --hops 256: rejected before sending (exit 2)
+PASS default header budget is 4; these are offline checks, not switch-delivery evidence
+Exit code: 0
+$ git diff --exit-code 3587e3a -- tunnel_v1.p4
+Exit code: 0
+$ git diff --check
+Exit code: 0

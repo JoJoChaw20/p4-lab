@@ -1,0 +1,173 @@
+C4 loop-after
+UTC start: 20261110T093040Z
+Student suffix: 5019; addresses: 10.19.0.x
+s1 program: tunnel.p4 (new); s2 program: tunnel.p4 (new).
+Prediction: budget 4 permits four forwards, then drops at s1 on the fifth arrival; processing totals s1=3, s2=2 stay stable over five seconds.
+SHA256 tunnel.p4: aaa15ac386e9fba1c6628939eb851cacc672fb47a7acf953a8193afc8f43caf7
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 6890e4250d90e082222de075d378e00e1389bb7a92424efa9debe1b538413d26
+SHA256 receive.py: fffe048eda9384e43fb620022d048372e27f2d04be4537b20fe8073315a22d0a
+Prior logs preserved at logs/pre-loop-after-20261110T093040Z
+$ python3 -u topo.py --id 5019
+*** Compiling tunnel.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> sh ./p4cli s1 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 02
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 03
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 "table_modify MyIngress.myTunnel_exact MyIngress.myTunnel_forward 2 1"
+Done
+Modifying entry 2 for exact match table MyIngress.myTunnel_exact
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 01
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+logs/s1.txt:0
+logs/s2.txt:0
+mininet> h1 python3 send.py 10.19.0.3 "loop" --tunnel 3 --hops 4
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 4
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 32
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x66a3
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 12
+           chksum    = 0xee0a
+###[ Raw ]### 
+              load      = 'loop'
+
+Sent from h1-eth0.
+mininet> sh date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:30:45.211921278Z
+logs/s1.txt:3
+logs/s2.txt:2
+mininet> sh sleep 5; date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:30:50.220593199Z
+logs/s1.txt:3
+logs/s2.txt:2
+mininet> sh grep -E "Processing packet received|Action MyIngress.myTunnel_forward$|Action MyIngress.drop$|Dropping packet" logs/s1.txt logs/s2.txt
+logs/s1.txt:[09:30:45.130] [bmv2] [D] [thread 56254] [0.0] [cxt 0] Processing packet received on port 1
+logs/s1.txt:[09:30:45.131] [bmv2] [T] [thread 56254] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:30:45.133] [bmv2] [D] [thread 56254] [1.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:30:45.133] [bmv2] [T] [thread 56254] [1.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:30:45.135] [bmv2] [D] [thread 56254] [2.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:30:45.137] [bmv2] [T] [thread 56254] [2.0] [cxt 0] Action MyIngress.drop
+logs/s1.txt:[09:30:45.137] [bmv2] [D] [thread 56254] [2.0] [cxt 0] Dropping packet at the end of ingress
+logs/s2.txt:[09:30:45.131] [bmv2] [D] [thread 56271] [0.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:30:45.132] [bmv2] [T] [thread 56271] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s2.txt:[09:30:45.134] [bmv2] [D] [thread 56271] [1.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:30:45.134] [bmv2] [T] [thread 56271] [1.0] [cxt 0] Action MyIngress.myTunnel_forward
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x79420d9514c0> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x73139331d430> failed with '[Errno 100] Network is down'. It was closed.
+Raw logs preserved at assignment/evidence/loop-after-logs.tar.gz

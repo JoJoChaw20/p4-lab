@@ -1,0 +1,318 @@
+C4 delivery
+UTC start: 20261110T093009Z
+Student suffix: 5019; addresses: 10.19.0.x
+s1 program: tunnel.p4 (new); s2 program: tunnel.p4 (new).
+Prediction: default budget 4 reaches h2/h3 with 2; plain ping works. On the two-switch route, 0 drops at s1, 1 drops at s2, and 2 reaches h3 with 0.
+SHA256 tunnel.p4: aaa15ac386e9fba1c6628939eb851cacc672fb47a7acf953a8193afc8f43caf7
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 6890e4250d90e082222de075d378e00e1389bb7a92424efa9debe1b538413d26
+SHA256 receive.py: fffe048eda9384e43fb620022d048372e27f2d04be4537b20fe8073315a22d0a
+Prior logs preserved at logs/pre-delivery-20261110T093009Z
+$ python3 -u topo.py --id 5019
+*** Compiling tunnel.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> h1 python3 send.py 10.19.0.3 "c4-h2-default" --tunnel 2
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 2
+     hops      = 4
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 41
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x669a
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 21
+           chksum    = 0x52db
+###[ Raw ]### 
+              load      = 'c4-h2-default'
+
+Sent from h1-eth0.
+mininet> h1 python3 send.py 10.19.0.3 "c4-h3-default" --tunnel 3
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 4
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 41
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x669a
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 21
+           chksum    = 0x51db
+###[ Raw ]### 
+              load      = 'c4-h3-default'
+
+Sent from h1-eth0.
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h2-default'
+Listening on h3-eth0...
+Received (tunnelled, dst_id=3, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h3-default'
+mininet> h1 ping -c 2 h3
+PING 10.19.0.3 (10.19.0.3) 56(84) bytes of data.
+64 bytes from 10.19.0.3: icmp_seq=1 ttl=62 time=5.61 ms
+64 bytes from 10.19.0.3: icmp_seq=2 ttl=62 time=4.82 ms
+
+--- 10.19.0.3 ping statistics ---
+2 packets transmitted, 2 received, 0% packet loss, time 1002ms
+rtt min/avg/max/mdev = 4.815/5.212/5.610/0.397 ms
+mininet> sh grep -c "Action MyIngress.drop$" logs/s1.txt logs/s2.txt
+logs/s1.txt:1
+logs/s2.txt:0
+mininet> h1 python3 send.py 10.19.0.3 "c4-boundary-0" --tunnel 3 --hops 0
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 0
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 41
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x669a
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 21
+           chksum    = 0x50c8
+###[ Raw ]### 
+              load      = 'c4-boundary-0'
+
+Sent from h1-eth0.
+mininet> sh sleep 1; grep -c "Action MyIngress.drop$" logs/s1.txt logs/s2.txt; cat logs/h2.txt logs/h3.txt
+logs/s1.txt:2
+logs/s2.txt:0
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h2-default'
+Listening on h3-eth0...
+Received (tunnelled, dst_id=3, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h3-default'
+mininet> h1 python3 send.py 10.19.0.3 "c4-boundary-1" --tunnel 3 --hops 1
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 1
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 41
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x669a
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 21
+           chksum    = 0x4fc8
+###[ Raw ]### 
+              load      = 'c4-boundary-1'
+
+Sent from h1-eth0.
+mininet> sh sleep 1; grep -c "Action MyIngress.drop$" logs/s1.txt logs/s2.txt; cat logs/h2.txt logs/h3.txt
+logs/s1.txt:2
+logs/s2.txt:1
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h2-default'
+Listening on h3-eth0...
+Received (tunnelled, dst_id=3, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h3-default'
+mininet> h1 python3 send.py 10.19.0.3 "c4-boundary-2" --tunnel 3 --hops 2
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 2
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 41
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x669a
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 21
+           chksum    = 0x4ec8
+###[ Raw ]### 
+              load      = 'c4-boundary-2'
+
+Sent from h1-eth0.
+mininet> sh sleep 1; grep -c "Action MyIngress.drop$" logs/s1.txt logs/s2.txt; cat logs/h2.txt logs/h3.txt
+logs/s1.txt:2
+logs/s2.txt:1
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h2-default'
+Listening on h3-eth0...
+Received (tunnelled, dst_id=3, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h3-default'
+Received (tunnelled, dst_id=3, hops=0) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-boundary-2'
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h2-default'
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x74443b091520> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+Received (tunnelled, dst_id=3, hops=2) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-h3-default'
+Received (tunnelled, dst_id=3, hops=0) from 10.19.0.1 to 10.19.0.3, TTL 64: 'c4-boundary-2'
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x73d59e0d54c0> failed with '[Errno 100] Network is down'. It was closed.
+Raw logs preserved at assignment/evidence/delivery-logs.tar.gz
+
+Post-run drop inspection: the pre-test drop on s1 was an IPv6 packet (EtherType 86dd), not a tunnel-budget drop. Boundary outcomes use increments from the pre-test counts.
+$ rg -n -B 18 -A 3 'Action MyIngress.drop$' logs/s1.txt logs/s2.txt
+logs/s2.txt-296-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] Bytes parsed: 14
+logs/s2.txt-297-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Parser 'parser' entering state 'parse_myTunnel'
+logs/s2.txt-298-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Extracting header 'myTunnel'
+logs/s2.txt-299-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Parser state 'parse_myTunnel': key is 0800
+logs/s2.txt-300-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] Bytes parsed: 19
+logs/s2.txt-301-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Parser 'parser' entering state 'parse_ipv4'
+logs/s2.txt-302-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Extracting header 'ipv4'
+logs/s2.txt-303-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Parser state 'parse_ipv4' has no switch, going to default next state
+logs/s2.txt-304-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] Bytes parsed: 39
+logs/s2.txt-305-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Parser 'parser': end
+logs/s2.txt-306-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Pipeline 'ingress': start
+logs/s2.txt-307-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] tunnel.p4(125) Condition "hdr.myTunnel.isValid()" (node_2) is true
+logs/s2.txt-308-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] tunnel.p4(127) Condition "hdr.myTunnel.hops == 0" (node_3) is true
+logs/s2.txt-309-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] Applying table 'tbl_drop'
+logs/s2.txt-310-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Looking up key:
+logs/s2.txt-311-
+logs/s2.txt-312-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Table 'tbl_drop': miss
+logs/s2.txt-313-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Action entry is MyIngress.drop - 
+logs/s2.txt:314:[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] Action MyIngress.drop
+logs/s2.txt-315-[09:30:17.874] [bmv2] [T] [thread 55899] [6.0] [cxt 0] tunnel.p4(97) Primitive mark_to_drop(standard_metadata)
+logs/s2.txt-316-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Pipeline 'ingress': end
+logs/s2.txt-317-[09:30:17.874] [bmv2] [D] [thread 55899] [6.0] [cxt 0] Egress port is 511
+--
+logs/s1.txt-6-[09:30:11.668] [bmv2] [D] [thread 55876] Adding interface s1-eth2 as port 2
+logs/s1.txt-7-[09:30:11.672] [bmv2] [I] [thread 55876] Starting Thrift server on port 9090
+logs/s1.txt-8-[09:30:11.672] [bmv2] [I] [thread 55876] Thrift server was started
+logs/s1.txt-9-[09:30:11.743] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt-10-[09:30:11.743] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Parser 'parser': start
+logs/s1.txt-11-[09:30:11.743] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Parser 'parser' entering state 'start'
+logs/s1.txt-12-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Extracting header 'ethernet'
+logs/s1.txt-13-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Parser state 'start': key is 86dd
+logs/s1.txt-14-[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] Bytes parsed: 14
+logs/s1.txt-15-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Parser 'parser': end
+logs/s1.txt-16-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Pipeline 'ingress': start
+logs/s1.txt-17-[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] tunnel.p4(125) Condition "hdr.myTunnel.isValid()" (node_2) is false
+logs/s1.txt-18-[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] tunnel.p4(132) Condition "hdr.ipv4.isValid()" (node_6) is false
+logs/s1.txt-19-[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] Applying table 'tbl_drop_0'
+logs/s1.txt-20-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Looking up key:
+logs/s1.txt-21-
+logs/s1.txt-22-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Table 'tbl_drop_0': miss
+logs/s1.txt-23-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Action entry is MyIngress.drop - 
+logs/s1.txt:24:[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] Action MyIngress.drop
+logs/s1.txt-25-[09:30:11.744] [bmv2] [T] [thread 55882] [0.0] [cxt 0] tunnel.p4(97) Primitive mark_to_drop(standard_metadata)
+logs/s1.txt-26-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Pipeline 'ingress': end
+logs/s1.txt-27-[09:30:11.744] [bmv2] [D] [thread 55882] [0.0] [cxt 0] Egress port is 511
+--
+logs/s1.txt-315-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] Bytes parsed: 14
+logs/s1.txt-316-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Parser 'parser' entering state 'parse_myTunnel'
+logs/s1.txt-317-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Extracting header 'myTunnel'
+logs/s1.txt-318-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Parser state 'parse_myTunnel': key is 0800
+logs/s1.txt-319-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] Bytes parsed: 19
+logs/s1.txt-320-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Parser 'parser' entering state 'parse_ipv4'
+logs/s1.txt-321-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Extracting header 'ipv4'
+logs/s1.txt-322-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Parser state 'parse_ipv4' has no switch, going to default next state
+logs/s1.txt-323-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] Bytes parsed: 39
+logs/s1.txt-324-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Parser 'parser': end
+logs/s1.txt-325-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Pipeline 'ingress': start
+logs/s1.txt-326-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] tunnel.p4(125) Condition "hdr.myTunnel.isValid()" (node_2) is true
+logs/s1.txt-327-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] tunnel.p4(127) Condition "hdr.myTunnel.hops == 0" (node_3) is true
+logs/s1.txt-328-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] Applying table 'tbl_drop'
+logs/s1.txt-329-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Looking up key:
+logs/s1.txt-330-
+logs/s1.txt-331-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Table 'tbl_drop': miss
+logs/s1.txt-332-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Action entry is MyIngress.drop - 
+logs/s1.txt:333:[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] Action MyIngress.drop
+logs/s1.txt-334-[09:30:16.396] [bmv2] [T] [thread 55882] [7.0] [cxt 0] tunnel.p4(97) Primitive mark_to_drop(standard_metadata)
+logs/s1.txt-335-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Pipeline 'ingress': end
+logs/s1.txt-336-[09:30:16.396] [bmv2] [D] [thread 55882] [7.0] [cxt 0] Egress port is 511
