@@ -1,0 +1,630 @@
+
+C5 mixed delivery
+UTC start: 20261110T093838Z
+Student suffix: 5019; addresses: 10.19.0.x
+s1 program: tunnel.p4 (new); s2 program: tunnel_v1.p4 (old). Hosts: new send.py and receive.py.
+Student prediction before test: h2 will not receive a correctly decoded packet. Capture at h1 and h2 will distinguish forwarding from correct decoding.
+SHA256 tunnel.p4: aaa15ac386e9fba1c6628939eb851cacc672fb47a7acf953a8193afc8f43caf7
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 6890e4250d90e082222de075d378e00e1389bb7a92424efa9debe1b538413d26
+SHA256 receive.py: fffe048eda9384e43fb620022d048372e27f2d04be4537b20fe8073315a22d0a
+Prior logs preserved at logs/pre-mixed-delivery-20261110T093838Z
+$ python3 -u topo.py --id 5019 --s2-program tunnel_v1.p4
+*** Compiling tunnel.p4
+*** Compiling tunnel_v1.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Mixed rollout: s1 runs tunnel.p4, s2 runs tunnel_v1.p4
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> h1 timeout 8 tcpdump -c 1 -XX -ni h1-eth0 ether proto 0x1212 > logs/h1cap.txt 2>&1 &
+[1] 59377
+mininet> h2 timeout 8 tcpdump -c 1 -XX -ni h2-eth0 ether proto 0x1212 > logs/h2cap.txt 2>&1 &
+[2] 59379
+mininet> sh sleep 1; cat logs/h1cap.txt logs/h2cap.txt
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h1-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h2-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+mininet> h1 python3 send.py 10.19.0.3 "mixed" --tunnel 2 --hops 4
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 2
+     hops      = 4
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 33
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x66a2
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 13
+           chksum    = 0x8019
+###[ Raw ]### 
+              load      = 'mixed'
+
+Sent from h1-eth0.
+mininet> sh sleep 8; cat logs/h1cap.txt logs/h2cap.txt
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h1-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+09:38:44.314155 00:00:00:00:00:01 > ff:ff:ff:ff:ff:ff, ethertype Unknown (0x1212), length 52: 
+	0x0000:  ffff ffff ffff 0000 0000 0001 1212 0800  ................
+	0x0010:  0002 0445 0000 2100 0100 0040 1166 a20a  ...E..!....@.f..
+	0x0020:  1300 010a 1300 0310 e110 e100 0d80 196d  ...............m
+	0x0030:  6978 6564                                ixed
+1 packet captured
+1 packet received by filter
+0 packets dropped by kernel
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h2-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+09:38:44.317008 00:00:00:00:00:01 > ff:ff:ff:ff:ff:ff, ethertype Unknown (0x1212), length 52: 
+	0x0000:  ffff ffff ffff 0000 0000 0001 1212 0800  ................
+	0x0010:  0002 0345 0000 2100 0100 0040 1166 a20a  ...E..!....@.f..
+	0x0020:  1300 010a 1300 0310 e110 e100 0d80 196d  ...............m
+	0x0030:  6978 6564                                ixed
+1 packet captured
+1 packet received by filter
+0 packets dropped by kernel
+mininet> sh cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=3) from 10.19.0.1 to 10.19.0.3, TTL 64: 'mixed'
+Listening on h3-eth0...
+mininet> sh cat logs/s2.txt
+[09:38:41.641] [bmv2] [D] [thread 59346] Set default default entry for table 'MyIngress.myTunnel_exact': MyIngress.drop - 
+[09:38:41.641] [bmv2] [D] [thread 59346] Set default default entry for table 'MyIngress.ipv4_lpm': MyIngress.drop - 
+[09:38:41.641] [bmv2] [D] [thread 59346] Set default default entry for table 'tbl_drop': MyIngress.drop - 
+[09:38:41.643] [bmv2] [D] [thread 59346] Adding interface s2-eth1 as port 1
+[09:38:41.649] [bmv2] [D] [thread 59346] Adding interface s2-eth2 as port 2
+[09:38:41.656] [bmv2] [D] [thread 59346] Adding interface s2-eth3 as port 3
+[09:38:41.661] [bmv2] [I] [thread 59346] Starting Thrift server on port 9091
+[09:38:41.662] [bmv2] [I] [thread 59346] Thrift server was started
+[09:38:41.942] [bmv2] [T] [thread 59369] bm_get_config
+[09:38:41.944] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.944] [bmv2] [D] [thread 59369] Entry 0 added to table 'MyIngress.ipv4_lpm'
+[09:38:41.944] [bmv2] [D] [thread 59369] Dumping entry 0
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130001/32
+Action entry: MyIngress.ipv4_forward - 1,
+
+[09:38:41.944] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.944] [bmv2] [D] [thread 59369] Entry 1 added to table 'MyIngress.ipv4_lpm'
+[09:38:41.944] [bmv2] [D] [thread 59369] Dumping entry 1
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130002/32
+Action entry: MyIngress.ipv4_forward - 2,
+
+[09:38:41.945] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.945] [bmv2] [D] [thread 59369] Entry 2 added to table 'MyIngress.ipv4_lpm'
+[09:38:41.945] [bmv2] [D] [thread 59369] Dumping entry 2
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130003/32
+Action entry: MyIngress.ipv4_forward - 3,
+
+[09:38:41.945] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.945] [bmv2] [D] [thread 59369] Entry 0 added to table 'MyIngress.myTunnel_exact'
+[09:38:41.945] [bmv2] [D] [thread 59369] Dumping entry 0
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 1,
+
+[09:38:41.945] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.945] [bmv2] [D] [thread 59369] Entry 1 added to table 'MyIngress.myTunnel_exact'
+[09:38:41.945] [bmv2] [D] [thread 59369] Dumping entry 1
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 2,
+
+[09:38:41.946] [bmv2] [T] [thread 59369] bm_table_add_entry
+[09:38:41.946] [bmv2] [D] [thread 59369] Entry 2 added to table 'MyIngress.myTunnel_exact'
+[09:38:41.946] [bmv2] [D] [thread 59369] Dumping entry 2
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 3,
+
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Processing packet received on port 1
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser 'parser': start
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser 'parser' entering state 'start'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Extracting header 'ethernet'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser state 'start': key is 1212
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] Bytes parsed: 14
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser 'parser' entering state 'parse_myTunnel'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Extracting header 'myTunnel'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser state 'parse_myTunnel': key is 0800
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] Bytes parsed: 18
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser 'parser' entering state 'parse_ipv4'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Extracting header 'ipv4'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser state 'parse_ipv4' has no switch, going to default next state
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] Bytes parsed: 38
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Parser 'parser': end
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Pipeline 'ingress': start
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] tunnel_v1.p4(123) Condition "hdr.myTunnel.isValid()" (node_2) is true
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] Applying table 'MyIngress.myTunnel_exact'
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Looking up key:
+* hdr.myTunnel.dst_id : 0002
+
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Table 'MyIngress.myTunnel_exact': hit with handle 1
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Dumping entry 1
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 2,
+
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Action entry is MyIngress.myTunnel_forward - 2,
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+[09:38:44.316] [bmv2] [T] [thread 59352] [0.0] [cxt 0] tunnel_v1.p4(112) Primitive standard_metadata.egress_spec = port
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Pipeline 'ingress': end
+[09:38:44.316] [bmv2] [D] [thread 59352] [0.0] [cxt 0] Egress port is 2
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Pipeline 'egress': start
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Pipeline 'egress': end
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Deparser 'deparser': start
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Updating checksum 'cksum'
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Deparsing header 'ethernet'
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Deparsing header 'myTunnel'
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Deparsing header 'ipv4'
+[09:38:44.316] [bmv2] [D] [thread 59355] [0.0] [cxt 0] Deparser 'deparser': end
+[09:38:44.316] [bmv2] [D] [thread 59357] [0.0] [cxt 0] Transmitting packet of size 52 out of port 2
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+Received (tunnelled, dst_id=2, hops=3) from 10.19.0.1 to 10.19.0.3, TTL 64: 'mixed'
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x7bd84f7e14c0> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x704591d6d490> failed with '[Errno 100] Network is down'. It was closed.
+Raw logs preserved at assignment/evidence/mixed-delivery-logs.tar.gz
+
+C5 mixed loop-after
+UTC start: 20261110T093923Z
+Student suffix: 5019; addresses: 10.19.0.x
+s1 program: tunnel.p4 (new); s2 program: tunnel_v1.p4 (old). Hosts: new send.py and receive.py.
+Student prediction before test: the loop may stop if the packet returns to s1. Diagnostic hypothesis: if the budget survives old s2 unchanged, s1 consumes it on each return; four s1 forwards and four s2 forwards, then a drop at s1 (five s1 arrivals, four s2 arrivals). Corruption or an earlier drop could contradict this hypothesis.
+SHA256 tunnel.p4: aaa15ac386e9fba1c6628939eb851cacc672fb47a7acf953a8193afc8f43caf7
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 6890e4250d90e082222de075d378e00e1389bb7a92424efa9debe1b538413d26
+SHA256 receive.py: fffe048eda9384e43fb620022d048372e27f2d04be4537b20fe8073315a22d0a
+Prior logs preserved at logs/pre-mixed-loop-after-20261110T093923Z
+$ python3 -u topo.py --id 5019 --s2-program tunnel_v1.p4
+*** Compiling tunnel.p4
+*** Compiling tunnel_v1.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Mixed rollout: s1 runs tunnel.p4, s2 runs tunnel_v1.p4
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> sh ./p4cli s1 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 02
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 03
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh ./p4cli s2 "table_modify MyIngress.myTunnel_exact MyIngress.myTunnel_forward 2 1"
+Done
+Modifying entry 2 for exact match table MyIngress.myTunnel_exact
+mininet> sh ./p4cli s2 table_dump MyIngress.myTunnel_exact
+Done
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0x0
+Match key:
+* myTunnel.dst_id     : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 01
+**********
+Dumping entry 0x1
+Match key:
+* myTunnel.dst_id     : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 02
+**********
+Dumping entry 0x2
+Match key:
+* myTunnel.dst_id     : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 01
+==========
+Dumping default entry
+Action entry: MyIngress.drop - 
+==========
+mininet> sh grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+logs/s1.txt:0
+logs/s2.txt:0
+mininet> h1 python3 send.py 10.19.0.3 "loop" --tunnel 3 --hops 4
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 3
+     hops      = 4
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 32
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x66a3
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 12
+           chksum    = 0xee0a
+###[ Raw ]### 
+              load      = 'loop'
+
+Sent from h1-eth0.
+mininet> sh date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:39:28.923173935Z
+logs/s1.txt:5
+logs/s2.txt:4
+mininet> sh sleep 5; date -u +%Y-%m-%dT%H:%M:%S.%NZ; grep -c "Processing packet received" logs/s1.txt logs/s2.txt
+2026-11-10T09:39:33.933881798Z
+logs/s1.txt:5
+logs/s2.txt:4
+mininet> sh grep -E "Processing packet received|Action MyIngress.myTunnel_forward$|Action MyIngress.drop$|Dropping packet" logs/s1.txt logs/s2.txt
+logs/s1.txt:[09:39:28.812] [bmv2] [D] [thread 59758] [0.0] [cxt 0] Processing packet received on port 1
+logs/s1.txt:[09:39:28.813] [bmv2] [T] [thread 59758] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:39:28.818] [bmv2] [D] [thread 59758] [1.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:39:28.819] [bmv2] [T] [thread 59758] [1.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:39:28.824] [bmv2] [D] [thread 59758] [2.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:39:28.824] [bmv2] [T] [thread 59758] [2.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:39:28.827] [bmv2] [D] [thread 59758] [3.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:39:28.829] [bmv2] [T] [thread 59758] [3.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s1.txt:[09:39:28.833] [bmv2] [D] [thread 59758] [4.0] [cxt 0] Processing packet received on port 2
+logs/s1.txt:[09:39:28.834] [bmv2] [T] [thread 59758] [4.0] [cxt 0] Action MyIngress.drop
+logs/s1.txt:[09:39:28.834] [bmv2] [D] [thread 59758] [4.0] [cxt 0] Dropping packet at the end of ingress
+logs/s2.txt:[09:39:28.815] [bmv2] [D] [thread 59776] [0.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:39:28.816] [bmv2] [T] [thread 59776] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s2.txt:[09:39:28.821] [bmv2] [D] [thread 59776] [1.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:39:28.822] [bmv2] [T] [thread 59776] [1.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s2.txt:[09:39:28.826] [bmv2] [D] [thread 59776] [2.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:39:28.826] [bmv2] [T] [thread 59776] [2.0] [cxt 0] Action MyIngress.myTunnel_forward
+logs/s2.txt:[09:39:28.830] [bmv2] [D] [thread 59776] [3.0] [cxt 0] Processing packet received on port 1
+logs/s2.txt:[09:39:28.831] [bmv2] [T] [thread 59776] [3.0] [cxt 0] Action MyIngress.myTunnel_forward
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x7d19b0f994f0> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x71120202d490> failed with '[Errno 100] Network is down'. It was closed.
+Raw logs preserved at assignment/evidence/mixed-loop-after-logs.tar.gz
+
+C5 mixed diagnostic delivery
+UTC start: 20261110T094041Z
+Student suffix: 5019; addresses: 10.19.0.x
+s1 program: tunnel.p4 (new); s2 program: tunnel_v1.p4 (old). Hosts: new send.py and receive.py.
+Diagnostic prediction after the default-budget success: changing only the starting budget from 4 to 3 should make old s2 overwrite actual IPv4 protocol 0x11 with 0x12. The frame should reach h2 with hops=2, but receive.py should not print a UDP delivery. This is an additional test, not a replacement of the original prediction or successful observation.
+SHA256 tunnel.p4: aaa15ac386e9fba1c6628939eb851cacc672fb47a7acf953a8193afc8f43caf7
+SHA256 tunnel_v1.p4: d7f1a87279fc696c676a93793c7e04ef5785d0e64ba551f121aec774eb1a1cee
+SHA256 send.py: 6890e4250d90e082222de075d378e00e1389bb7a92424efa9debe1b538413d26
+SHA256 receive.py: fffe048eda9384e43fb620022d048372e27f2d04be4537b20fe8073315a22d0a
+Prior logs preserved at logs/pre-mixed-diagnostic-20261110T094041Z
+$ python3 -u topo.py --id 5019 --s2-program tunnel_v1.p4
+*** Compiling tunnel.p4
+*** Compiling tunnel_v1.p4
+*** Configuring hosts
+h1 h2 h3 
+*** Starting controller
+
+*** Starting 2 switches
+s1 s2 
+*** s1: 6 table entries added
+*** s2: 6 table entries added
+*** Your hosts: h1 10.19.0.1, h2 10.19.0.2, h3 10.19.0.3
+*** Mixed rollout: s1 runs tunnel.p4, s2 runs tunnel_v1.p4
+*** Ready. Switch logs: logs/s1.txt, logs/s2.txt. What h2 and h3 receive: logs/h2.txt, logs/h3.txt
+*** Starting CLI:
+mininet> sh sleep 1; cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> h1 timeout 8 tcpdump -c 1 -XX -ni h1-eth0 ether proto 0x1212 > logs/h1cap.txt 2>&1 &
+mininet> h2 timeout 8 tcpdump -c 1 -XX -ni h2-eth0 ether proto 0x1212 > logs/h2cap.txt 2>&1 &
+[2] 60475
+mininet> sh sleep 1; cat logs/h1cap.txt logs/h2cap.txt
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h1-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h2-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+mininet> h1 python3 send.py 10.19.0.3 "mixed" --tunnel 2 --hops 3
+###[ Ethernet ]### 
+  dst       = ff:ff:ff:ff:ff:ff
+  src       = 00:00:00:00:00:01
+  type      = 0x1212
+###[ MyTunnel ]### 
+     proto_id  = 2048
+     dst_id    = 2
+     hops      = 3
+###[ IP ]### 
+        version   = 4
+        ihl       = 5
+        tos       = 0x0
+        len       = 33
+        id        = 1
+        flags     = 
+        frag      = 0
+        ttl       = 64
+        proto     = udp
+        chksum    = 0x66a2
+        src       = 10.19.0.1
+        dst       = 10.19.0.3
+        \options   \
+###[ UDP ]### 
+           sport     = 4321
+           dport     = 4321
+           len       = 13
+           chksum    = 0x8019
+###[ Raw ]### 
+              load      = 'mixed'
+
+Sent from h1-eth0.
+mininet> sh sleep 8; cat logs/h1cap.txt logs/h2cap.txt
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h1-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+09:40:46.597031 00:00:00:00:00:01 > ff:ff:ff:ff:ff:ff, ethertype Unknown (0x1212), length 52: 
+	0x0000:  ffff ffff ffff 0000 0000 0001 1212 0800  ................
+	0x0010:  0002 0345 0000 2100 0100 0040 1166 a20a  ...E..!....@.f..
+	0x0020:  1300 010a 1300 0310 e110 e100 0d80 196d  ...............m
+	0x0030:  6978 6564                                ixed
+1 packet captured
+1 packet received by filter
+0 packets dropped by kernel
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on h2-eth0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+09:40:46.601552 00:00:00:00:00:01 > ff:ff:ff:ff:ff:ff, ethertype Unknown (0x1212), length 52: 
+	0x0000:  ffff ffff ffff 0000 0000 0001 1212 0800  ................
+	0x0010:  0002 0245 0000 2100 0100 0040 1266 a20a  ...E..!....@.f..
+	0x0020:  1300 010a 1300 0310 e110 e100 0d80 196d  ...............m
+	0x0030:  6978 6564                                ixed
+1 packet captured
+1 packet received by filter
+0 packets dropped by kernel
+mininet> sh cat logs/h2.txt logs/h3.txt
+Listening on h2-eth0...
+Listening on h3-eth0...
+mininet> sh cat logs/s2.txt
+[09:40:43.928] [bmv2] [D] [thread 60436] Set default default entry for table 'MyIngress.myTunnel_exact': MyIngress.drop - 
+[09:40:43.928] [bmv2] [D] [thread 60436] Set default default entry for table 'MyIngress.ipv4_lpm': MyIngress.drop - 
+[09:40:43.928] [bmv2] [D] [thread 60436] Set default default entry for table 'tbl_drop': MyIngress.drop - 
+[09:40:43.929] [bmv2] [D] [thread 60436] Adding interface s2-eth1 as port 1
+[09:40:43.932] [bmv2] [D] [thread 60436] Adding interface s2-eth2 as port 2
+[09:40:43.937] [bmv2] [D] [thread 60436] Adding interface s2-eth3 as port 3
+[09:40:43.941] [bmv2] [I] [thread 60436] Starting Thrift server on port 9091
+[09:40:43.941] [bmv2] [I] [thread 60436] Thrift server was started
+[09:40:44.181] [bmv2] [T] [thread 60462] bm_get_config
+[09:40:44.182] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.182] [bmv2] [D] [thread 60462] Entry 0 added to table 'MyIngress.ipv4_lpm'
+[09:40:44.182] [bmv2] [D] [thread 60462] Dumping entry 0
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130001/32
+Action entry: MyIngress.ipv4_forward - 1,
+
+[09:40:44.183] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.183] [bmv2] [D] [thread 60462] Entry 1 added to table 'MyIngress.ipv4_lpm'
+[09:40:44.183] [bmv2] [D] [thread 60462] Dumping entry 1
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130002/32
+Action entry: MyIngress.ipv4_forward - 2,
+
+[09:40:44.183] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.183] [bmv2] [D] [thread 60462] Entry 2 added to table 'MyIngress.ipv4_lpm'
+[09:40:44.183] [bmv2] [D] [thread 60462] Dumping entry 2
+Match key:
+* hdr.ipv4.dstAddr    : LPM       0a130003/32
+Action entry: MyIngress.ipv4_forward - 3,
+
+[09:40:44.183] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.183] [bmv2] [D] [thread 60462] Entry 0 added to table 'MyIngress.myTunnel_exact'
+[09:40:44.183] [bmv2] [D] [thread 60462] Dumping entry 0
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0001
+Action entry: MyIngress.myTunnel_forward - 1,
+
+[09:40:44.184] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.184] [bmv2] [D] [thread 60462] Entry 1 added to table 'MyIngress.myTunnel_exact'
+[09:40:44.184] [bmv2] [D] [thread 60462] Dumping entry 1
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 2,
+
+[09:40:44.184] [bmv2] [T] [thread 60462] bm_table_add_entry
+[09:40:44.184] [bmv2] [D] [thread 60462] Entry 2 added to table 'MyIngress.myTunnel_exact'
+[09:40:44.184] [bmv2] [D] [thread 60462] Dumping entry 2
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0003
+Action entry: MyIngress.myTunnel_forward - 3,
+
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Processing packet received on port 1
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser 'parser': start
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser 'parser' entering state 'start'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Extracting header 'ethernet'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser state 'start': key is 1212
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] Bytes parsed: 14
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser 'parser' entering state 'parse_myTunnel'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Extracting header 'myTunnel'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser state 'parse_myTunnel': key is 0800
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] Bytes parsed: 18
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser 'parser' entering state 'parse_ipv4'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Extracting header 'ipv4'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser state 'parse_ipv4' has no switch, going to default next state
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] Bytes parsed: 38
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Parser 'parser': end
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Pipeline 'ingress': start
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] tunnel_v1.p4(123) Condition "hdr.myTunnel.isValid()" (node_2) is true
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] Applying table 'MyIngress.myTunnel_exact'
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Looking up key:
+* hdr.myTunnel.dst_id : 0002
+
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Table 'MyIngress.myTunnel_exact': hit with handle 1
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Dumping entry 1
+Match key:
+* hdr.myTunnel.dst_id : EXACT     0002
+Action entry: MyIngress.myTunnel_forward - 2,
+
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Action entry is MyIngress.myTunnel_forward - 2,
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] Action MyIngress.myTunnel_forward
+[09:40:46.600] [bmv2] [T] [thread 60442] [0.0] [cxt 0] tunnel_v1.p4(112) Primitive standard_metadata.egress_spec = port
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Pipeline 'ingress': end
+[09:40:46.600] [bmv2] [D] [thread 60442] [0.0] [cxt 0] Egress port is 2
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Pipeline 'egress': start
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Pipeline 'egress': end
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Deparser 'deparser': start
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Updating checksum 'cksum'
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Deparsing header 'ethernet'
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Deparsing header 'myTunnel'
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Deparsing header 'ipv4'
+[09:40:46.601] [bmv2] [D] [thread 60445] [0.0] [cxt 0] Deparser 'deparser': end
+[09:40:46.601] [bmv2] [D] [thread 60447] [0.0] [cxt 0] Transmitting packet of size 52 out of port 2
+mininet> exit
+*** Stopping 0 controllers
+
+*** Stopping 4 links
+....
+*** Stopping 2 switches
+s1 s2 
+*** Stopping 3 hosts
+h1 h2 h3 
+*** Done
+
+Network process exit code: 0
+$ cat logs/h2.txt logs/h3.txt
+--- h2.txt ---
+Listening on h2-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x7c75a2d7d490> failed with '[Errno 100] Network is down'. It was closed.
+--- h3.txt ---
+Listening on h3-eth0...
+WARNING: Socket <scapy.arch.linux.L2ListenSocket object at 0x7747fb1d94c0> failed with '[Errno 100] Network is down'. It was closed.
+Raw logs preserved at assignment/evidence/mixed-diagnostic-logs.tar.gz
+
+Post-run byte analysis. The script reads the archived captures; it does not generate network evidence.
+$ python3 assignment/analyze_mixed.py
+
+Archive: mixed-delivery-logs.tar.gz
+Captured lengths: h1=52, h2=52 bytes
+Captured tunnel budgets: h1=4, h2=3
+Changed Ethernet-frame offsets (zero based):
+  18: 0x04 -> 0x03
+Old s2's 20-byte IPv4 view starts at offset 18: 034500002100010000401166a20a1300010a1300
+Old view: version=0, IHL=3
+Old checksum field before update: 0x1166
+Computed old checksum written at frame offsets 28-29: 0x1166
+Actual IPv4 protocol at frame offset 28: h1=0x11, h2=0x11
+Actual IPv4 checksum validation at h2 (0 means valid): 0x0000
+Decrement plus misaligned checksum model matches every captured byte: True
+
+Archive: mixed-diagnostic-logs.tar.gz
+Captured lengths: h1=52, h2=52 bytes
+Captured tunnel budgets: h1=3, h2=2
+Changed Ethernet-frame offsets (zero based):
+  18: 0x03 -> 0x02
+  28: 0x11 -> 0x12
+Old s2's 20-byte IPv4 view starts at offset 18: 024500002100010000401166a20a1300010a1300
+Old view: version=0, IHL=2
+Old checksum field before update: 0x1166
+Computed old checksum written at frame offsets 28-29: 0x1266
+Actual IPv4 protocol at frame offset 28: h1=0x11, h2=0x12
+Actual IPv4 checksum validation at h2 (0 means valid): 0xfffe
+Decrement plus misaligned checksum model matches every captured byte: True
+Exit code: 0
