@@ -2,7 +2,7 @@
 
 Student ID (last 4 digits only): **5019**
 
-Draft in progress: C1 measured, C2 selected and C3 locally verified; C4–C5 are pending.
+Draft in progress: C1–C4 complete; C5 evaluation and final review are pending.
 The student will review the explanations before submission.
 
 ## 1. Analysis: the loop
@@ -65,7 +65,8 @@ because its budget is exhausted.
 The default of 4 covers the normal two-switch route and keeps loop experiments
 short. The prediction is that a normal receiver will see 2 remaining. In the
 loop, there should be four forwards (s1, s2, s1, s2), followed by a drop on the
-fifth switch arrival at s1. These are predictions, pending C4 measurements.
+fifth switch arrival at s1. These predictions were recorded before C4; the
+measured results are in section 4.
 
 All three components use the same order: 16-bit `proto_id`, 16-bit `dst_id`,
 then 8-bit `hops`. P4's existing whole-header extract and emit statements now
@@ -93,11 +94,36 @@ the GitHub check status; those require the later experiments and submission.
 
 ## 4. Evidence: it works
 
-<!-- Show, with your evidence files:
-     - tunnelled delivery to h2 and h3, and the hop limit the receivers saw (delivery.txt);
-     - plain IPv4 still works (delivery.txt);
-     - the same loop as in section 1 now ends, and after how many passes — does that match
-       your design? (loop-after.txt) -->
+Both switches ran the new `tunnel.p4`. In [delivery.txt](evidence/delivery.txt),
+the default-budget packets reached h2 through exit 2 and h3 through exit 3.
+Both receivers printed `hops=2` and inner IPv4 TTL 64, matching two tunnel
+forwards from a starting budget of 4. The exit-2 packet deliberately still
+had IP destination `10.19.0.3`: reception at h2 shows that the tunnel exit
+continues to determine forwarding. Plain `h1 ping -c 2 h3` received both replies
+with TTL 62 and 0% loss.
+
+The boundary tests used the normal two-switch route to h3:
+
+| Starting budget | Observed result |
+|---|---|
+| 0 | No receiver delivery; s1's drop count increased by one |
+| 1 | No receiver delivery; s2's drop count increased by one |
+| 2 | h3 received `c4-boundary-2` with `hops=0`; no additional drops |
+
+The zero comparisons in the switch logs confirm the first two drops. s1 already
+had one unrelated startup drop: the parser identified EtherType `86dd` (IPv6).
+The evidence therefore uses changes in the drop counts, not their absolute values.
+The full delivery logs are in [delivery-logs.tar.gz](evidence/delivery-logs.tar.gz).
+
+For [loop-after.txt](evidence/loop-after.txt), a fresh network was started and
+the same exit-3 entry on s2 was changed to port 1. One packet with budget 4
+produced 3 processing events at s1 and 2 at s2, from initial counts of zero.
+Both counts stayed unchanged across the five-second observation interval.
+The action logs show two tunnel forwards on each switch and then an explicit
+ingress drop on s1. This is four successful forwards and a fifth arrival that
+is dropped, exactly matching the selected rule. Neither receiver logged the
+loop packet. The network was then stopped cleanly, and the full logs are in
+[loop-after-logs.tar.gz](evidence/loop-after-logs.tar.gz).
 
 ## 5. Evaluation
 
@@ -117,7 +143,9 @@ Codex read the assignment and repository, explained the C1 experiment, ran it,
 recorded commands and actual outputs, preserved the logs, identified log rotation,
 and drafted the C1 analysis. It proposed the C2 design, explained zero-budget
 handling and unsigned wraparound, and implemented the design I accepted in
-the P4 program and both host scripts. It also automated milestone commits. I completed
+the P4 program and both host scripts. It ran local compilation, offline header
+checks, C4 delivery and boundary tests, and the bounded loop test, then drafted
+the results from their outputs. It also automated milestone commits. I completed
 the guided lab, restored and verified baseline tunnel delivery, and preserved
 the original program on `hop-limit` before this session. During the discussion,
 I identified that an exhausted budget should cause a drop and accepted the
@@ -136,5 +164,7 @@ and the remaining experiments are still pending.
 | `evidence/loop-before-logs.tar.gz` | Original switch and receiver logs, including rotated files |
 | `evidence/compile.txt` | Local compilation, Python syntax and offline header checks |
 | `evidence/delivery.txt` | Tunnelled delivery with the hop limit, and a plain ping |
+| `evidence/delivery-logs.tar.gz` | Full delivery and boundary-test switch and receiver logs |
 | `evidence/loop-after.txt` | The same loop with your hop limit: pass counts that stop |
+| `evidence/loop-after-logs.tar.gz` | Full switch and receiver logs for the bounded loop |
 | `evidence/mixed.txt` | The mixed rollout: s1 new, s2 old |
